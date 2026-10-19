@@ -36,6 +36,16 @@
   if (mq.addEventListener) mq.addEventListener('change', fit);
 })();
 </script>
+<script>
+// Hide only the opening composition before its one-time entrance begins.
+// With JavaScript disabled, the page remains visible in its original state.
+if (window.matchMedia('(prefers-reduced-motion: no-preference)').matches) {
+  document.documentElement.classList.add('entrance-pending');
+  window.__entranceFallback = window.setTimeout(function () {
+    document.documentElement.classList.remove('entrance-pending');
+  }, 3500);
+}
+</script>
 <style>
 @font-face{font-family:"Inter Display";font-weight:400;font-style:normal;font-display:block;src:url(assets/inter-display-400.woff2) format("woff2")}
 @font-face{font-family:"Inter Display";font-weight:500;font-style:normal;font-display:block;src:url(assets/inter-display-500.woff2) format("woff2")}
@@ -339,6 +349,9 @@ html.is-compact .alert{flex:none;min-height:var(--hpx)}
   html.is-compact .live{justify-self:start}
   html.is-compact .wave{width:110px;overflow:hidden}
 }
+/* The shell and artwork stay still; only opening content waits for the timeline. */
+html.is-desktop.entrance-pending :is(.brand,.search,.sidebar .nav,.topbar .crumbs,.topbar .actions,.welcome h1,.welcome p,.kpi,.hero__title,.metric--a,.metric--b,.ai,.live,.staff,.beds,.alerts),
+html.is-compact.entrance-pending :is(.topbar .menu-btn,.topbar .crumbs,.topbar .actions,.welcome h1,.welcome p,.kpi){opacity:0}
 @media (prefers-reduced-motion: reduce){*{transition:none!important}}
 </style>
 </head>
@@ -582,6 +595,82 @@ html.is-compact .alert{flex:none;min-height:var(--hpx)}
   btn.addEventListener('click', function () { setNav(!root.classList.contains('nav-open')); });
   document.getElementById('scrim').addEventListener('click', function () { setNav(false); });
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape') setNav(false); });
+})();
+</script>
+<script>
+(function () {
+  var root = document.documentElement;
+  if (!root.classList.contains('entrance-pending')) return;
+
+  var animations = [];
+  var prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+  var finished = false;
+  function finish() {
+    if (finished) return;
+    finished = true;
+    window.clearTimeout(window.__entranceFallback);
+    root.classList.remove('entrance-pending');
+    animations.forEach(function (animation) { animation.cancel(); });
+    prefersReducedMotion.removeEventListener('change', onMotionChange);
+  }
+  function onMotionChange(event) { if (event.matches) finish(); }
+  prefersReducedMotion.addEventListener('change', onMotionChange);
+
+  // One shared timeline: shell, greeting, data, then the clinical composition.
+  var desktop = root.classList.contains('is-desktop');
+  var steps = desktop ? [
+    ['.brand',              40, 470, 'side'],
+    ['.topbar .crumbs',    100, 460, 'support'],
+    ['.topbar .actions',   180, 480, 'support'],
+    ['.search',            190, 460, 'support'],
+    ['.sidebar .nav:not(.logout)', 270, 610, 'support'],
+    ['.sidebar .logout',   550, 450, 'support'],
+    ['.welcome h1',       270, 760, 'type'],
+    ['.welcome p',        460, 500, 'support'],
+    ['.kpi--green',       520, 690, 'card'],
+    ['.kpi--blue',        650, 690, 'card'],
+    ['.kpi--yellow',      780, 690, 'card'],
+    ['.hero__title',      920, 700, 'type'],
+    ['.metric--a',       1050, 640, 'support'],
+    ['.metric--b',       1150, 640, 'support'],
+    ['.ai',              1190, 720, 'panel'],
+    ['.live',            1340, 500, 'support'],
+    ['.staff',           1320, 700, 'card'],
+    ['.alerts',          1370, 700, 'card'],
+    ['.beds',            1490, 640, 'card']
+  ] : [
+    ['.topbar .menu-btn',  30, 400, 'support'],
+    ['.topbar .crumbs',    80, 460, 'support'],
+    ['.topbar .actions',  150, 460, 'support'],
+    ['.welcome h1',      230, 700, 'type'],
+    ['.welcome p',       410, 460, 'support'],
+    ['.kpi--green',      520, 620, 'card'],
+    ['.kpi--blue',       670, 620, 'card'],
+    ['.kpi--yellow',     820, 620, 'card']
+  ];
+
+  var ease = 'cubic-bezier(.22,1,.36,1)';
+  var frames = {
+    side:    [{ opacity: 0, transform: 'translateX(-8px)' }, { opacity: 1, transform: 'none' }],
+    support: [{ opacity: 0, transform: 'translateY(6px)' }, { opacity: 1, transform: 'none' }],
+    type:    [{ opacity: 0, transform: 'translateY(8px)', clipPath: 'inset(0 0 100% 0)' },
+              { opacity: 1, transform: 'none', clipPath: 'inset(0 0 0 0)' }],
+    card:    [{ opacity: 0, transform: 'translateY(9px) scale(.995)' }, { opacity: 1, transform: 'none' }],
+    panel:   [{ opacity: 0, clipPath: 'inset(0 12% 0 0 round 12px)' },
+              { opacity: 1, clipPath: 'inset(0 0 0 0 round 12px)' }]
+  };
+
+  try {
+    steps.forEach(function (step) {
+      var element = document.querySelector(step[0]);
+      if (element) animations.push(element.animate(frames[step[3]], {
+        delay: step[1], duration: step[2], easing: ease, fill: 'both'
+      }));
+    });
+    Promise.all(animations.map(function (animation) { return animation.finished; })).then(finish, finish);
+  } catch (error) {
+    finish();
+  }
 })();
 </script>
 </body>
